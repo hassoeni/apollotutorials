@@ -17,9 +17,16 @@ export const Link = objectType({
 					.postedBy()
 			},
 		})
+		t.nonNull.list.nonNull.field("voters", {
+			type: "User", 
+			resolve(parent,args, context) {
+				return context.prisma.link
+				.findUnique({where: {id: parent.id}})
+				.voters()
+			}
+		})
 	},
 })
-
 
 export const LinkQuery = extendType({
 	// 2: You are extending the Query root type and adding a new root field to it called feed.
@@ -36,31 +43,34 @@ export const LinkQuery = extendType({
 	},
 })
 
-// what to do after each api requests for example create a new post that increments id
 export const LinkMutation = extendType({
-	//1  You’re extending the Mutation type to add a new root field. You did something similar in the last chapter with the Query type.
 	type: 'Mutation',
 	definition(t) {
 		t.nonNull.field('post', {
-			// 2: The name of the mutation is defined as post and it returns a (non nullable) link object.
 			type: 'Link',
 			args: {
-				// 3: Here you define the arguments to your mutation. You can pass arguments to your GraphQL API endpoints (just like in REST).
-				// In this case, the two arguments you need to pass are description and url. Both arguments mandatory (hence the nonNull()) because both are needed to create a new link.
 				description: nonNull(stringArg()),
 				url: nonNull(stringArg()),
 			},
-
 			resolve(parent, args, context) {
+				const { description, url } = args
+				const { userId } = context
+
+				if (!userId) {
+					// 1
+					throw new Error('Cannot post without logging in.')
+				}
+
 				const newLink = context.prisma.link.create({
 					data: {
-						description: args.description, 
-						url: args.url
-					}
+						description,
+						url,
+						postedBy: { connect: { id: userId } }, // 2
+					},
 				})
+
 				return newLink
 			},
 		})
 	},
 })
-
