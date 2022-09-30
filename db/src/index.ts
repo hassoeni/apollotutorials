@@ -1,4 +1,6 @@
 import { ApolloServer } from "apollo-server";
+import { ApolloServerPluginLandingPageLocalDefault } from 'apollo-server-core'
+
 // import { ApolloServerPluginLandingPageGraphQLPlayground } from 'apollo-server-core'
 import {context} from './context'
 
@@ -10,9 +12,11 @@ export const server = new ApolloServer({
     schema,
     context, // ensures that we can access primsa with context.prisma in all resolvers
     // plugins: [ApolloServerPluginLandingPageGraphQLPlayground()] sets up local apolloplayground on localhost:3000
+    introspection: true, 
+    plugins: [ApolloServerPluginLandingPageLocalDefault()]
 })
 
-const port = 8181; 
+const port = process.env.PORT || 8181; 
 //2  You start the server and specify the port. After the server starts, it returns a url string inside a promise.
 server.listen({port}).then(({ url }) => {
     console.log(`🚀  Server ready at ${url}`);
