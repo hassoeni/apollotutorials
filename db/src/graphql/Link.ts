@@ -1,4 +1,15 @@
-import { extendType, intArg, nonNull, objectType, stringArg } from 'nexus'
+import {
+	extendType,
+	nonNull,
+	objectType,
+	stringArg,
+	intArg,
+	inputObjectType,
+	enumType,
+	arg,
+	list,
+} from 'nexus'
+import { Prisma } from '@prisma/client'
 import { NexusGenObjects } from '../../nexus-typegen'
 
 export const Link = objectType({
@@ -7,6 +18,7 @@ export const Link = objectType({
 		t.nonNull.int('id')
 		t.nonNull.string('description')
 		t.nonNull.string('url')
+		t.nonNull.dateTime('createdAt')
 		t.field('postedBy', {
 			// 1
 			type: 'User',
@@ -17,27 +29,57 @@ export const Link = objectType({
 					.postedBy()
 			},
 		})
-		t.nonNull.list.nonNull.field("voters", {
-			type: "User", 
-			resolve(parent,args, context) {
+		t.nonNull.list.nonNull.field('voters', {
+			type: 'User',
+			resolve(parent, args, context) {
 				return context.prisma.link
-				.findUnique({where: {id: parent.id}})
-				.voters()
-			}
+					.findUnique({ where: { id: parent.id } })
+					.voters()
+			},
 		})
 	},
 })
 
 export const LinkQuery = extendType({
-	// 2: You are extending the Query root type and adding a new root field to it called feed.
 	type: 'Query',
 	definition(t) {
-		t.nonNull.list.nonNull.field('feed', {
-			// 3: You define the return type of the feed query as a not nullable array of link type objects (In the SDL the return type will look like this: [Link!]!).
-			type: 'Link',
-			resolve(parent, args, context, info) {
-				return context.prisma.link.findMany()
+		t.nonNull.field('feed', {
+			// 1
+			type: 'Feed',
+			args: {
+				filter: stringArg(),
+				skip: intArg(),
+				take: intArg(),
+				orderBy: arg({ type: list(nonNull(LinkOrderByInput)) }),
+			},
+			async resolve(parent, args, context) {
+				const where = args.filter
+					? {
+							OR: [
+								{ description: { contains: args.filter } },
+								{ url: { contains: args.filter } },
+							],
+					  }
+					: {}
 
+				const links = await context.prisma.link.findMany({
+					where,
+					skip: args?.skip as number | undefined,
+					take: args?.take as number | undefined,
+					orderBy: args?.orderBy as
+						| Prisma.Enumerable<Prisma.LinkOrderByWithRelationInput>
+						| undefined,
+				})
+
+				const count = await context.prisma.link.count({ where }) // 2
+				const id = `main-feed:${JSON.stringify(args)}` // 3
+
+				return {
+					// 4
+					links,
+					count,
+					id,
+				}
 			},
 		})
 	},
@@ -72,5 +114,28 @@ export const LinkMutation = extendType({
 				return newLink
 			},
 		})
+	},
+})
+
+export const LinkOrderByInput = inputObjectType({
+	name: 'LinkOrderbyInput',
+	definition(t) {
+		t.field('description', { type: Sort })
+		t.field('url', { type: Sort })
+		t.field('createdAt', { type: Sort })
+	},
+})
+
+export const Sort = enumType({
+	name: 'Sort',
+	members: ['asc', 'desc'],
+})
+
+export const Feed = objectType({
+	name: "Feed", 
+	definition(t) {
+		t.nonNull.list.nonNull.field("links", {type: Link}),
+		t.nonNull.int("count"), 
+		t.id("id")
 	},
 })
